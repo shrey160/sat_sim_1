@@ -2,6 +2,8 @@
 
 A lightweight, stylized web-based 3D satellite simulator built with Vanilla JavaScript, Three.js, and Vite.
 
+Website: https://satsim1deployed.vercel.app/
+
 ## Overview
 
 This project simulates a remote sensing satellite orbiting a 3D Earth, projecting a dynamic coverage swath (footprint) onto the globe. The user has full parametric control over the orbital characteristics and remote sensing sensor properties through an interactive GUI.
