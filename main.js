@@ -84,11 +84,15 @@ const earthMesh = new THREE.Mesh(earthGeo, earthMat);
 earthGroup.add(earthMesh);
 
 // Outer grid bounds (stylized)
+const textureLoader = new THREE.TextureLoader();
+const waterMask = textureLoader.load('/earth_spec.jpg');
+
 const wireMat = new THREE.MeshBasicMaterial({
   color: 0x45a29e,
   wireframe: true,
   transparent: true,
-  opacity: 0.15
+  opacity: 0.15,
+  alphaMap: waterMask
 });
 const wireMesh = new THREE.Mesh(earthGeo, wireMat);
 wireMesh.scale.setScalar(1.001);
@@ -149,7 +153,9 @@ scene.add(activeSwathMesh);
 
 // --- GUI ---
 const gui = new GUI({ title: 'Satellite Control' });
-gui.add(params, 'preset', Object.keys(PRESETS)).name('Orbit Preset').onChange(v => {
+
+const orbitFolder = gui.addFolder('Orbit Parameters');
+orbitFolder.add(params, 'preset', Object.keys(PRESETS)).name('Orbit Preset').onChange(v => {
   if (PRESETS[v]) {
     params.altitude = PRESETS[v].alt;
     params.inclination = PRESETS[v].inc;
@@ -159,19 +165,23 @@ gui.add(params, 'preset', Object.keys(PRESETS)).name('Orbit Preset').onChange(v 
   satLabel.element.textContent = v;
   updateSwathSize();
 });
-gui.add(params, 'altitude', 200, 36000).name('Altitude (km)').listen().onChange(clearSwathHistory);
-gui.add(params, 'inclination', 0, 180).name('Inclination (deg)').listen().onChange(clearSwathHistory);
-gui.add(params, 'raan', 0, 360).name('RAAN (deg)').listen().onChange(clearSwathHistory);
-gui.add(params, 'swathWidth', 50, 5000).name('Swath Width (km)').listen().onChange(updateSwathSize);
-gui.add(params, 'altitudeScale', 0.5, 3.0).name('Altitude Multiplier');
-gui.add(params, 'nadirAngle', -60, 60).name('Nadir Angle (deg)');
-gui.add(params, 'rotationsToKeep', 0.1, 5).name('Trailing Rotations').onChange(clearSwathHistory);
-gui.add(params, 'timeMultiplier', 1, 1000).name('Time Speed');
-gui.add(params, 'clearHistory').name('Clear Trail');
+orbitFolder.add(params, 'altitude', 200, 36000).name('Altitude (km)').listen().onChange(clearSwathHistory);
+orbitFolder.add(params, 'inclination', 0, 180).name('Inclination (deg)').listen().onChange(clearSwathHistory);
+orbitFolder.add(params, 'raan', 0, 360).name('RAAN (deg)').listen().onChange(clearSwathHistory);
+
+const rsFolder = gui.addFolder('Remote Sensing Properties');
+rsFolder.add(params, 'swathWidth', 50, 5000).name('Swath Width (km)').listen().onChange(updateSwathSize);
+rsFolder.add(params, 'nadirAngle', -60, 60).name('Nadir Angle (deg)');
+rsFolder.add(params, 'rotationsToKeep', 0.1, 5).name('Trailing Rotations').onChange(clearSwathHistory);
+rsFolder.add(params, 'clearHistory').name('Clear Trail');
+
+const simFolder = gui.addFolder('Simulation Settings');
+simFolder.add(params, 'altitudeScale', 0.5, 3.0).name('Altitude Multiplier');
+simFolder.add(params, 'timeMultiplier', 1, 1000).name('Time Speed');
 
 // --- GeoJSON Borders ---
 params.showBorders = true;
-const borderController = gui.add(params, 'showBorders').name('Show Borders');
+const borderController = simFolder.add(params, 'showBorders').name('Show Borders');
 
 Promise.all([
   fetch('/countries.geojson').then(res => res.json()),
