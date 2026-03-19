@@ -173,9 +173,10 @@ gui.add(params, 'clearHistory').name('Clear Trail');
 params.showBorders = true;
 const borderController = gui.add(params, 'showBorders').name('Show Borders');
 
-fetch('/countries.geojson')
-  .then(res => res.json())
-  .then(data => {
+Promise.all([
+  fetch('/countries.geojson').then(res => res.json()),
+  fetch('/india.geojson').then(res => res.json())
+]).then(([worldData, indiaData]) => {
     const bordersPoints = [];
     const r = earthRad + 0.005; // Slightly above the surface to prevent z-fighting
 
@@ -194,18 +195,25 @@ fetch('/countries.geojson')
       }
     }
 
-    data.features.forEach(feature => {
-      if (!feature.geometry) return;
-      if (feature.geometry.type === 'Polygon') {
-        feature.geometry.coordinates.forEach(ring => addRing(ring));
-      } else if (feature.geometry.type === 'MultiPolygon') {
-        feature.geometry.coordinates.forEach(poly => poly.forEach(ring => addRing(ring)));
-      } else if (feature.geometry.type === 'LineString') {
-        addRing(feature.geometry.coordinates);
-      } else if (feature.geometry.type === 'MultiLineString') {
-        feature.geometry.coordinates.forEach(ring => addRing(ring));
-      }
-    });
+    function parseFeatures(features, excludeIndia) {
+      features.forEach(feature => {
+        if (!feature.geometry) return;
+        if (excludeIndia && feature.properties && feature.properties.name === 'India') return;
+
+        if (feature.geometry.type === 'Polygon') {
+          feature.geometry.coordinates.forEach(ring => addRing(ring));
+        } else if (feature.geometry.type === 'MultiPolygon') {
+          feature.geometry.coordinates.forEach(poly => poly.forEach(ring => addRing(ring)));
+        } else if (feature.geometry.type === 'LineString') {
+          addRing(feature.geometry.coordinates);
+        } else if (feature.geometry.type === 'MultiLineString') {
+          feature.geometry.coordinates.forEach(ring => addRing(ring));
+        }
+      });
+    }
+
+    parseFeatures(worldData.features, true);
+    parseFeatures(indiaData.features, false);
 
     const bordersGeo = new THREE.BufferGeometry();
     bordersGeo.setAttribute('position', new THREE.Float32BufferAttribute(bordersPoints, 3));
