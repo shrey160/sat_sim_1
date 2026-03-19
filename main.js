@@ -169,6 +169,61 @@ gui.add(params, 'rotationsToKeep', 0.1, 5).name('Trailing Rotations').onChange(c
 gui.add(params, 'timeMultiplier', 1, 1000).name('Time Speed');
 gui.add(params, 'clearHistory').name('Clear Trail');
 
+// --- GeoJSON Borders ---
+params.showBorders = true;
+const borderController = gui.add(params, 'showBorders').name('Show Borders');
+
+fetch('/countries.geojson')
+  .then(res => res.json())
+  .then(data => {
+    const bordersPoints = [];
+    const r = earthRad + 0.005; // Slightly above the surface to prevent z-fighting
+
+    function addRing(ring) {
+      for (let i = 0; i < ring.length - 1; i++) {
+        const [lon1, lat1] = ring[i];
+        const [lon2, lat2] = ring[i+1];
+        
+        const clat1 = Math.cos(lat1 * Math.PI/180), slat1 = Math.sin(lat1 * Math.PI/180);
+        const clon1 = Math.cos(lon1 * Math.PI/180), slon1 = Math.sin(lon1 * Math.PI/180);
+        bordersPoints.push(r * clat1 * clon1, r * slat1, -r * clat1 * slon1);
+        
+        const clat2 = Math.cos(lat2 * Math.PI/180), slat2 = Math.sin(lat2 * Math.PI/180);
+        const clon2 = Math.cos(lon2 * Math.PI/180), slon2 = Math.sin(lon2 * Math.PI/180);
+        bordersPoints.push(r * clat2 * clon2, r * slat2, -r * clat2 * slon2);
+      }
+    }
+
+    data.features.forEach(feature => {
+      if (!feature.geometry) return;
+      if (feature.geometry.type === 'Polygon') {
+        feature.geometry.coordinates.forEach(ring => addRing(ring));
+      } else if (feature.geometry.type === 'MultiPolygon') {
+        feature.geometry.coordinates.forEach(poly => poly.forEach(ring => addRing(ring)));
+      } else if (feature.geometry.type === 'LineString') {
+        addRing(feature.geometry.coordinates);
+      } else if (feature.geometry.type === 'MultiLineString') {
+        feature.geometry.coordinates.forEach(ring => addRing(ring));
+      }
+    });
+
+    const bordersGeo = new THREE.BufferGeometry();
+    bordersGeo.setAttribute('position', new THREE.Float32BufferAttribute(bordersPoints, 3));
+    const bordersMat = new THREE.LineBasicMaterial({
+      color: 0x45a29e, // Matches the theme setup
+      transparent: true,
+      opacity: 0.5
+    });
+    const bordersMesh = new THREE.LineSegments(bordersGeo, bordersMat);
+    earthGroup.add(bordersMesh);
+    
+    borderController.onChange(v => {
+      bordersMesh.visible = v;
+    });
+  })
+  .catch(err => console.error("Error loading GeoJSON", err));
+
+
 function updateSwathSize() {
   activeSwathGeo.dispose();
   activeSwathGeo = createSwathGeometry(params.swathWidth);
