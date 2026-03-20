@@ -123,8 +123,12 @@
       <div class="sim-clock-speed" id="sim-clock-speed">60×</div>
     </div>
 
+    <!-- Bottom-Right LiveTracker Toggle Tab -->
+    <button class="live-tracker-tab" onclick="toggleLiveTracker()">📡 Live Lookup</button>
+
     <!-- Bottom-Right LiveTracker Panel -->
-    <div class="live-tracker-panel">
+    <div class="live-tracker-panel" id="live-tracker-panel">
+      <button class="live-tracker-close" onclick="toggleLiveTracker()">✕</button>
       <h2>Live Satellite Lookup</h2>
       <p class="live-tracker-subtitle">Fetch latest TLE from Celestrak</p>
       <div class="live-tracker-row">
@@ -251,6 +255,11 @@
       function loadISS() {
         document.getElementById('catalog-input').value = '25544';
         fetchCelestrakTLE('25544');
+      }
+
+      function toggleLiveTracker() {
+        const panel = document.getElementById('live-tracker-panel');
+        panel.classList.toggle('active');
       }
     </script>
     

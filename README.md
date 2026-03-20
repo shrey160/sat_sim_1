@@ -32,8 +32,16 @@ This project simulates a remote sensing satellite orbiting a 3D Earth using indu
 - Dynamic country borders rendered from GeoJSON (Natural Earth + official India composite boundaries).
 - Trailing swath history with time-based opacity fading for coverage visualization.
 
+### Simulation Clock & Time Control
+- **Live Simulation Clock**: Real-time display of simulation date and time, accurately reflecting the `Time Speed` multiplier.
+- **Timezone Support**: Choose between **IST**, **PST**, **UTC**, or a **Custom UTC Offset** to view the simulation time in your preferred region.
+- **Reverse Playback**: The `Time Speed` parameter now accepts negative values (up to -1000x), allowing you to propagate the orbit and swath history backward in time.
+- **Jump to Time**: Input any ISO-format date/time string to instantly teleport the simulation to that specific point in history or the future.
+
 ### Premium UI
 - Glassmorphism header overlay with click-to-expand **Controls Guide**, **TLE Format Guide**, and **TLE Field Breakdown** panels.
+- **Interactive Clock Panel**: Centered on the right side, showing time, date, and current playback speed.
+- **Togglable Live Lookup**: The Live Satellite Lookup panel is now a discreet pop-up tab at the bottom right to save screen real estate.
 - Custom-themed `lil-gui` control panel with backdrop blur and matching color scheme.
 - Sample NORAD Catalog Numbers provided: ISS (`25544`), Hubble (`20580`), Landsat-8 (`39084`).
 

@@ -22,14 +22,30 @@ The page includes three click-to-expand glassmorphism panels in the top-left cor
 
 Each panel uses `onclick` handlers calling `toggleGuide()`, `toggleTLEGuide()`, and `toggleTLEBreakdown()` to show/hide content.
 
+### Simulation Clock Display
+```html
+<div class="sim-clock-panel" id="sim-clock">
+  <div class="sim-clock-time-row">
+    <span class="sim-clock-time" id="sim-clock-time">00:00:00</span>
+    <span class="sim-clock-tz" id="sim-clock-tz">IST</span>
+  </div>
+  <!-- ... ... -->
+</div>
+```
+- A dedicated glassmorphism panel that displays the simulation's internal `simTime`. It is updated every frame by `main.js`.
+- It dynamically reflects the `Time Speed` multiplier and the user-selected timezone offset.
+
 ### Live Satellite Lookup Panel
 ```html
-<div class="live-tracker-panel">
+<button class="live-tracker-tab" onclick="toggleLiveTracker()">📡 Live Lookup</button>
+<div class="live-tracker-panel" id="live-tracker-panel">
+  <button class="live-tracker-close" onclick="toggleLiveTracker()">✕</button>
   <input type="text" id="catalog-input" placeholder="NORAD Catalog # (e.g. 25544)" />
   <button onclick="fetchCelestrakTLE()">Fetch</button>
   <button class="iss-btn" onclick="loadISS()">🛰️ Track ISS Live</button>
 </div>
 ```
+- **Togglable State**: The tracker is now a discreet pop-up in the bottom-right corner. It is toggled via `toggleLiveTracker()`, which flips the `.active` class on the panel to animate it into view.
 - `fetchCelestrakTLE()`: Fetches from `/celestrak-api?CATNR={id}&FORMAT=TLE` (proxied through Vite to `celestrak.org`), parses the response, and dispatches a `celestrak-tle` custom DOM event consumed by `main.js`.
 - `loadISS()`: Shortcut that pre-fills `25544` and triggers the fetch.
 
@@ -97,6 +113,17 @@ const gmst = satellite.gstime(t);
 const positionEcf = satellite.eciToEcf(positionEci, gmst);
 ```
 Replaces the previous manual Keplerian engine entirely. `satellite.js` runs the SGP4/SDP4 propagator internally, handling all orbital mechanics (including J2 oblateness perturbations and atmospheric drag from BSTAR). The result is converted from ECI to ECEF coordinates using Greenwich Sidereal Time.
+
+### Time Control & Simulation Clock
+The simulation uses a manual `simTime` accumulator to manage the time state:
+```javascript
+const stepMs = delta * 1000 * params.timeMultiplier;
+simTime += stepMs; 
+updateClockDisplay(new Date(simTime));
+```
+- **Negative Speed**: By allowing `timeMultiplier` to be negative, `stepMs` becomes negative, effectively rewinding the orbit and simulation state.
+- **Timezone Offsets**: `updateClockDisplay` applies the current `clockState.customOffsetHours` to the UTC simulation time before formatting it for display (IST/PST/UTC).
+- **Jump to Time**: The `applySetTime` function allows users to input any ISO-format string, updating `simTime` directly and forcing an immediate SGP4 recalculation for that specific epoch.
 
 ### LVLH Frame & Sensor Pointing
 ```javascript
