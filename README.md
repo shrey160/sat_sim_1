@@ -6,33 +6,43 @@ Website: https://satsim1deployed.vercel.app/
 
 ## Overview
 
-This project simulates a remote sensing satellite orbiting a 3D Earth, projecting a dynamic coverage swath (footprint) onto the globe. The user has full parametric control over the orbital characteristics and remote sensing sensor properties through an interactive GUI.
+This project simulates a remote sensing satellite orbiting a 3D Earth using industry-standard **Two-Line Element (TLE)** data — the same format used by NORAD, Celestrak, and Heavens-Above. The simulator projects a dynamic coverage swath (footprint) onto the globe with full along-track and cross-track sensor pointing control. Users can fetch live TLE data directly from Celestrak's public API.
 
-## How the Code Works
+## Features
 
-The core simulation logic lives inside `main.js`:
+### TLE-Based Orbit Propagation
+- Accepts standard Two-Line Element sets matching the Celestrak/Heavens-Above format.
+- Propagates orbits using `satellite.js` (SGP4/SDP4), accurately modeling Earth oblateness and atmospheric drag.
+- Preset TLEs for **Landsat-8**, **ISS**, and **NOAA-20** are included.
+- Paste full 2-line or 3-line TLE blocks directly into the TLE Line 1 input field — auto-parsing splits and populates both lines automatically.
 
-1. **Three.js SphereGlobe Visualization**: 
-   - A `SphereGeometry` forms the Earth, utilizing a dark `MeshPhongMaterial` and an atmospheric edge. 
-   - A futuristic glowing wireframe mesh is wrapped around the Earth. We use an `alphaMap` (a high-resolution specular map) loaded from `/earth_spec.jpg`. This calculates opacity natively, dynamically hiding the wireframe on landmasses while allowing the grid to exclusively shade the Earth's oceans and lakes.
-   - **Dynamic Country Borders**: Real-world country boundaries (fusing global Natural Earth data with the official DataMeet composite map for Indian territories) are retrieved via native GeoJSON format. A custom algorithm loops through the geometric coordinates, projects Latitude and Longitude into 3D Cartesian space, and renders them seamlessly as `THREE.LineSegments`.
+### LVLH Sensor Pointing
+- Constructs a **Local Vertical Local Horizontal (LVLH)** reference frame each frame from the satellite's instantaneous velocity vector.
+- **Along-Track Angle (Pitch):** Tilts the sensor forward/backward along the flight path.
+- **Cross-Track Angle (Roll):** Tilts the sensor sideways, perpendicular to the flight path.
+- Raycasting projects the sensor footprint accurately onto Earth's curved surface.
 
-2. **Parametric Keplerian Propagator**:
-   - The simulator dynamically calculates real-time coordinates using a custom parametric Keplerian orbital mechanics engine. 
-   - Users can manipulate core orbital elements directly from the UI, including **Altitude**, **Inclination**, and Right Ascension of the Ascending Node (**RAAN**). 
-   - The engine constructs the 3D orbit natively in the orbital plane and rotates it smoothly into the Earth-Centered Inertial (ECI) coordinate frame.
-   - **satellite.js** is leveraged specifically to calculate the Greenwich Mean Sidereal Time (GMST). This maps the exact sideways rotation of the Earth beneath the satellite to translate ECI projections down into accurate Earth-Centered Earth-Fixed (ECEF) coordinates.
+### Live Celestrak Lookup
+- Bottom-right panel allows fetching the **latest TLE** for any satellite by entering its NORAD Catalog Number.
+- One-click **Track ISS Live** button for instant ISS orbit visualization.
+- Vite dev server proxies requests to `celestrak.org` to bypass CORS restrictions.
 
-3. **Remote Sensing Swath**:
-   - As the satellite propagates mathematically, instantaneous raycasting is performed against the `THREE.Sphere` to determine the projected bounds of the camera (including cross-track pitch vectors offset by the user's selected Nadir Angle).
-   - A trailing swath history is visualized by duplicating the footprint mesh repeatedly into memory. The rendering loop actively monitors these meshes against an exact time-to-live threshold (measured actively via the satellite's orbital period multiplied by your allowed "Trailing Rotations") to continuously fade them out, creating a fluid animated coverage ribbon.
+### 3D Globe Visualization
+- Stylized dark globe with a wireframe ocean mask derived from a specular map (`earth_spec.jpg`).
+- Dynamic country borders rendered from GeoJSON (Natural Earth + official India composite boundaries).
+- Trailing swath history with time-based opacity fading for coverage visualization.
+
+### Premium UI
+- Glassmorphism header overlay with click-to-expand **Controls Guide**, **TLE Format Guide**, and **TLE Field Breakdown** panels.
+- Custom-themed `lil-gui` control panel with backdrop blur and matching color scheme.
+- Sample NORAD Catalog Numbers provided: ISS (`25544`), Hubble (`20580`), Landsat-8 (`39084`).
 
 ## Dependencies
 
-*   **Vite** (`vite`): The blazing fast frontend bundler and development server infrastructure.
-*   **Three.js** (`three`): The WebGL 3D rendering library used to construct the scene, lights, and models.
-*   **satellite.js** (`satellite.js`): Specifically used in this fork for establishing high-precision Earth Sidereal time tracking.
-*   **lil-gui** (`lil-gui`): The lightweight drop-in graphical user interface library backing the robust parameter control panel.
+* **Vite** (`vite`): Frontend bundler and development server with Celestrak API proxy.
+* **Three.js** (`three`): WebGL 3D rendering library for the globe, satellite, and footprint geometry.
+* **satellite.js** (`satellite.js`): SGP4/SDP4 orbit propagator and coordinate transformation library.
+* **lil-gui** (`lil-gui`): Lightweight GUI library for the interactive parameter control panel.
 
 ## Installation and Execution
 
@@ -54,3 +64,5 @@ Ensure you have [Node.js](https://nodejs.org/) installed before running these co
    ```
 
 Navigate your browser to `http://localhost:5173/` (or whichever local port Vite specifies upon launch) to interact with the simulator.
+
+> **Note:** The Live Satellite Lookup feature requires the Vite dev server's proxy (configured in `vite.config.js`) to fetch from Celestrak. This will not work with a static file server.
