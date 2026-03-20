@@ -14,9 +14,21 @@ const MU_EARTH = 398600.4418; // km^3/s^2
 
 // Dictionary mapped to the GUI containing standard orbit parameter presets
 const PRESETS = {
-  'Landsat-8': { alt: 705, inc: 98.2, swath: 185 },
-  'ISS': { alt: 420, inc: 51.6, swath: 500 },
-  'NOAA-20': { alt: 824, inc: 98.7, swath: 3000 },
+  'Landsat-8': {
+    tle1: '1 39084U 13008A   24083.50000000  .00000000  00000-0  00000-0 0  9998',
+    tle2: '2 39084  98.2000   0.0000 0001000   0.0000   0.0000 14.57100000000000',
+    swath: 185
+  },
+  'ISS': {
+    tle1: '1 25544U 98067A   24083.50000000  .00010000  00000-0  18000-3 0  9997',
+    tle2: '2 25544  51.6400 330.0000 0005000  46.0000  92.0000 15.50000000000000',
+    swath: 500
+  },
+  'NOAA-20': {
+    tle1: '1 43013U 17073A   24083.50000000  .00000000  00000-0  00000-0 0  9999',
+    tle2: '2 43013  98.7000   0.0000 0001000   0.0000   0.0000 14.19500000000000',
+    swath: 3000
+  },
   'Custom': null
 };
 
@@ -24,16 +36,54 @@ const PRESETS = {
 // The central state object reacting dynamically to the lil-gui control panel
 const params = {
   preset: 'Landsat-8',
-  altitude: 705,      // Radius above Earth's surface (km)
-  inclination: 98.2,  // The angle of the orbital plane to the equator (degrees)
-  raan: 0,            // Right Ascension of the Ascending Node (rotation of orbit around the Earth) (degrees)
+  tleLine1: PRESETS['Landsat-8'].tle1,
+  tleLine2: PRESETS['Landsat-8'].tle2,
   swathWidth: 185,    // The physical width of the sensor's snapshot footprint (km)
   altitudeScale: 1.0, // A multiplier strictly for visual exaggeration in the 3D scene
-  nadirAngle: 0,      // The sensor's cross-track tilt representing off-nadir staring (degrees)
+  alongTrackAngle: 0, // Pitch (forward/backward) pointing offset (degrees)
+  crossTrackAngle: 0, // Roll (sideways) pointing offset (degrees)
   rotationsToKeep: 1, // How many orbital overlaps the system retains footprint histories for
   timeMultiplier: 60, // Speed multiplier accelerating physical simulation time
   clearHistory: () => clearSwathHistory() // Function bound to the GUI button
 };
+
+let currentSatrec = satellite.twoline2satrec(params.tleLine1, params.tleLine2);
+let lastScenePos = null;
+let lastSimTime = 0;
+
+function updateSatrec() {
+  try {
+    // Intelligently parse multi-line pastes directly into Line 1
+    if (params.tleLine1.includes('\n')) {
+      const lines = params.tleLine1.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      
+      // Handle standard 3-line format (Name, Line 1, Line 2) or basic 2-line format
+      if (lines.length >= 3 && lines[1].startsWith('1 ') && lines[2].startsWith('2 ')) {
+        params.tleLine1 = lines[1];
+        params.tleLine2 = lines[2];
+        params.preset = 'Custom';
+      } else if (lines.length >= 2 && lines[0].startsWith('1 ') && lines[1].startsWith('2 ')) {
+        params.tleLine1 = lines[0];
+        params.tleLine2 = lines[1];
+        params.preset = 'Custom';
+      }
+      // Force GUI to visually refresh with the cleanly split data
+      gui.controllersRecursive().forEach(c => c.updateDisplay());
+    }
+
+    const testSatrec = satellite.twoline2satrec(params.tleLine1, params.tleLine2);
+    // Validate the parsed satrec gracefully using current time before committing
+    if (!satellite.propagate(testSatrec, new Date()).position) {
+      throw new Error("Invalid TLE physical output");
+    }
+    
+    currentSatrec = testSatrec;
+    clearSwathHistory();
+  } catch(e) {
+    console.warn("Invalid or incomplete TLE syntax. Waiting for valid input...", e.message);
+  }
+}
+
 
 // Arrays and timers for trailing footprint caching
 let swathHistory = [];
@@ -181,21 +231,22 @@ const gui = new GUI({ title: 'Satellite Control' });
 const orbitFolder = gui.addFolder('Orbit Parameters');
 orbitFolder.add(params, 'preset', Object.keys(PRESETS)).name('Orbit Preset').onChange(v => {
   if (PRESETS[v]) {
-    params.altitude = PRESETS[v].alt;
-    params.inclination = PRESETS[v].inc;
+    params.tleLine1 = PRESETS[v].tle1;
+    params.tleLine2 = PRESETS[v].tle2;
     params.swathWidth = PRESETS[v].swath;
     gui.controllersRecursive().forEach(c => c.updateDisplay());
+    updateSatrec();
   }
   satLabel.element.textContent = v;
   updateSwathSize();
 });
-orbitFolder.add(params, 'altitude', 200, 36000).name('Altitude (km)').listen().onChange(clearSwathHistory);
-orbitFolder.add(params, 'inclination', 0, 180).name('Inclination (deg)').listen().onChange(clearSwathHistory);
-orbitFolder.add(params, 'raan', 0, 360).name('RAAN (deg)').listen().onChange(clearSwathHistory);
+orbitFolder.add(params, 'tleLine1').name('TLE Line 1').listen().onChange(updateSatrec);
+orbitFolder.add(params, 'tleLine2').name('TLE Line 2').listen().onChange(updateSatrec);
 
 const rsFolder = gui.addFolder('Remote Sensing Properties');
 rsFolder.add(params, 'swathWidth', 50, 5000).name('Swath Width (km)').listen().onChange(updateSwathSize);
-rsFolder.add(params, 'nadirAngle', -60, 60).name('Nadir Angle (deg)');
+rsFolder.add(params, 'alongTrackAngle', -60, 60).name('Along-Track Angle (deg)');
+rsFolder.add(params, 'crossTrackAngle', -60, 60).name('Cross-Track Angle (deg)');
 rsFolder.add(params, 'rotationsToKeep', 0.1, 5).name('Trailing Rotations').onChange(clearSwathHistory);
 rsFolder.add(params, 'clearHistory').name('Clear Trail');
 
@@ -307,67 +358,63 @@ function animate() {
   simTime += stepMs; // Accumulate native internal simulated timeframe 
   const t = new Date(simTime);
 
-  // --- Parametric Keplerian Orbit Calculations ---
-  // Calculates real-time coordinates operating parametric Keplerian logic sequentially
-  const r = EARTH_RADIUS_KM + params.altitude; // True orbit radius dynamically linked against the planet's core natively
-  const n = Math.sqrt(MU_EARTH / Math.pow(r, 3)); // Extrapolates exact Mean Motion rotating velocity natively in Rads/Second
-  const orbitalPeriodMs = (2 * Math.PI / n) * 1000; // Formula deriving the full length of a unified orbital revolution
-  
-  // Computes instantaneous True Anomaly angle actively in the current orbital plane mapping trajectory over time identically
-  const M = n * (simTime / 1000); 
-  
-  // Native translation scaling angle internally over X and Y planes identically
-  const x_orb = r * Math.cos(M);
-  const y_orb = r * Math.sin(M);
-  
-  // Maps inclination inputs parsing standard pitch arrays against physical right ascension components accurately
-  const inc = THREE.MathUtils.degToRad(params.inclination);
-  const raan = THREE.MathUtils.degToRad(params.raan);
-  
-  // ECI Rotational Map applying absolute quaternion mathematics over precise angular matrices exclusively
-  const x_eci = x_orb * Math.cos(raan) - (y_orb * Math.cos(inc)) * Math.sin(raan);
-  const y_eci = x_orb * Math.sin(raan) + (y_orb * Math.cos(inc)) * Math.cos(raan);
-  const z_eci = y_orb * Math.sin(inc);
-  
-  const positionEci = { x: x_eci, y: y_eci, z: z_eci };
-  // Fetches precision calculated Greenwich Sidereal matching exactly the planet's actual instantaneous sideways rotation 
-  const gmst = satellite.gstime(t);
+  // --- TLE Orbit Propagation ---
+  const orbitalPeriodMs = (2 * Math.PI / (currentSatrec.no || 0.0698)) * 60000; // Formula deriving the full length of a unified orbital revolution natively
 
-  // ECI to ECEF (rotating frame) conversion natively dropping geometry accurately over spinning maps 
-  const positionEcf = satellite.eciToEcf(positionEci, gmst);
+  let positionEci;
+  try {
+    const positionAndVelocity = satellite.propagate(currentSatrec, t);
+    positionEci = positionAndVelocity.position;
+  } catch (e) {
+    // Return gracefully if string map explicitly fails propagating invalid math
+  }
   
-  // Scale absolute space correctly converting literal kilometer mapping over exactly to localized Three.js ratios mapped
-  let x = positionEcf.x * SCALE;
-  let y = positionEcf.z * SCALE;
-  let z = -positionEcf.y * SCALE;
+  if (positionEci && positionEci.x !== undefined && !isNaN(positionEci.x)) {
+    const gmst = satellite.gstime(t);
+    const positionEcf = satellite.eciToEcf(positionEci, gmst);
+    
+    // Scale absolute space correctly converting literal kilometer mapping over exactly to localized Three.js ratios mapped
+    let x = positionEcf.x * SCALE;
+    let y = positionEcf.z * SCALE;
+    let z = -positionEcf.y * SCALE;
 
-  // Emulates custom presentation offsets scaling visually outside bounds natively preserving pure map geometry identical
-  const dist = Math.sqrt(x*x + y*y + z*z);
-  const alt = dist - earthRad;
-  const scaledDist = earthRad + (alt * params.altitudeScale); // Scaling trick manipulating exclusively rendering radius internally
-  const ratio = scaledDist / dist;
-  x *= ratio;
-  y *= ratio;
-  z *= ratio;
+    // Emulates custom presentation offsets scaling visually outside bounds natively preserving pure map geometry identical
+    const dist = Math.sqrt(x*x + y*y + z*z);
+    const alt = dist - earthRad;
+    const scaledDist = earthRad + (alt * params.altitudeScale); // Scaling trick manipulating exclusively rendering radius internally
+    const ratio = scaledDist / dist;
+    x *= ratio;
+    y *= ratio;
+    z *= ratio;
 
-  satGroup.position.set(x, y, z); // Update primary satellite positioning framework natively
-  
+    satGroup.position.set(x, y, z); // Update primary satellite positioning framework natively
+  }
+
   // Apply a generic visual spin upon the diamond natively purely for aesthetics identically
   satMesh.rotation.x += delta;
   satMesh.rotation.y += delta * 1.5;
 
   // --- Update Swath Position & Orientation Raycasting ---
-  // Calculates an exact geometric vector shooting natively directly over to the core
-  const satDir = satGroup.position.clone().normalize();
+  // Determine instantaneous scene velocity to establish Local Vertical Local Horizontal (LVLH) frame mappings exactly
+  let sceneVel = new THREE.Vector3(1, 0, 0);
+  if (lastScenePos && (simTime !== lastSimTime)) {
+     sceneVel.subVectors(satGroup.position, lastScenePos).normalize();
+  }
+  lastScenePos = satGroup.position.clone();
+  lastSimTime = simTime;
+
+  // Creates pure math calculating exact standard LVLH offset matrices natively mapping exact attitude controls
+  const nadir = satGroup.position.clone().negate().normalize();
+  const crossTrack = nadir.clone().cross(sceneVel).normalize(); 
+  const alongTrack = crossTrack.clone().cross(nadir).normalize();
+
+  // Apply absolute angular targeting sweeps mapping exactly sensor offset logics organically 
+  const pointingDir = nadir.clone();
+  const pitchRad = THREE.MathUtils.degToRad(params.alongTrackAngle);
+  const rollRad = THREE.MathUtils.degToRad(params.crossTrackAngle);
   
-  // Extracts exact localized coordinate plane arrays factoring right angle math calculating exact offset pitches natively
-  const north = new THREE.Vector3(0, 1, 0);
-  const east = new THREE.Vector3().crossVectors(north, satDir).normalize();
-  
-  // Invert normal mapping targeting the center exactly creating downward projection natively
-  const pointingDir = satDir.clone().negate(); 
-  const nadirRad = THREE.MathUtils.degToRad(params.nadirAngle);
-  pointingDir.applyAxisAngle(east, nadirRad); // Swings the camera tilt laterally mapping off-nadir sensors exactly
+  pointingDir.applyAxisAngle(crossTrack, pitchRad); // Pitch (forward/backward) mapping natively directly 
+  pointingDir.applyAxisAngle(alongTrack, rollRad);  // Roll (sideways cross-track) exactly logically over orbit
 
   // Constructs native laser logic evaluating intersects matching natively directly upon spherical physics bounds
   const ray = new THREE.Ray(satGroup.position, pointingDir);
@@ -446,3 +493,18 @@ window.addEventListener('resize', () => {
 
 // Launch loop globally mapping core system immediately natively
 animate();
+
+// Listen for live TLE data dispatched by the Celestrak lookup panel
+window.addEventListener('celestrak-tle', (e) => {
+  const { line1, line2, name } = e.detail;
+  params.tleLine1 = line1;
+  params.tleLine2 = line2;
+  params.preset = 'Custom';
+  satLabel.element.textContent = name;
+  gui.controllersRecursive().forEach(c => c.updateDisplay());
+  updateSatrec();
+  updateSwathSize();
+  // Reset simulation time to current real time for accurate propagation
+  simTime = new Date().getTime();
+  lastScenePos = null;
+});

@@ -12,8 +12,8 @@
     "vite": "^5.2.0"
   },
   "dependencies": {
-    "three": "^0.160.0",
+    "lil-gui": "^0.19.1",
     "satellite.js": "^5.0.0",
-    "lil-gui": "^0.19.1"
+    "three": "^0.160.0"
   }
 }
