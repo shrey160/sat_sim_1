@@ -2,7 +2,7 @@
 
 A lightweight, stylized web-based 3D satellite simulator built with Vanilla JavaScript, Three.js, and Vite.
 
-Website: https://satsim1deployed.vercel.app/
+Website: https://shrey160-satsim1deployed.vercel.app/
 
 ## Overview
 
