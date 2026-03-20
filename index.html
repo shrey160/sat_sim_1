@@ -82,6 +82,24 @@
       </div>
     </div>
 
+    <!-- Satellite Info Card (appears on fetch, dismissible) -->
+    <div class="sat-info-card" id="sat-info-card" style="display: none;">
+      <button class="sat-info-close" onclick="closeSatInfo()">✕</button>
+      <h3 id="sat-info-name">—</h3>
+      <div class="sat-info-grid">
+        <div class="sat-info-item"><span class="sat-info-label">NORAD ID</span><span class="sat-info-value" id="sat-info-norad">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Intl Designator</span><span class="sat-info-value" id="sat-info-intl">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Epoch</span><span class="sat-info-value" id="sat-info-epoch">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Period</span><span class="sat-info-value" id="sat-info-period">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Inclination</span><span class="sat-info-value" id="sat-info-inc">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Apogee</span><span class="sat-info-value" id="sat-info-apo">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Perigee</span><span class="sat-info-value" id="sat-info-per">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Eccentricity</span><span class="sat-info-value" id="sat-info-ecc">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">RAAN</span><span class="sat-info-value" id="sat-info-raan">—</span></div>
+        <div class="sat-info-item"><span class="sat-info-label">Mean Motion</span><span class="sat-info-value" id="sat-info-mm">—</span></div>
+      </div>
+    </div>
+
     <!-- Bottom-Right LiveTracker Panel -->
     <div class="live-tracker-panel">
       <h2>Live Satellite Lookup</h2>
@@ -147,9 +165,41 @@
           // Dispatch custom event to main.js for ingestion
           window.dispatchEvent(new CustomEvent('celestrak-tle', { detail: { line1, line2, name } }));
           setStatus(`✓ Loaded: ${name}`);
+
+          // Fetch JSON metadata for the info card
+          try {
+            const metaRes = await fetch(`/celestrak-api?CATNR=${id}&FORMAT=JSON`);
+            const metaArr = await metaRes.json();
+            if (Array.isArray(metaArr) && metaArr.length > 0) {
+              showSatInfo(metaArr[0]);
+            }
+          } catch(metaErr) {
+            // Info card is optional — silently skip if metadata fetch fails
+          }
         } catch(e) {
           setStatus('Network error. Is the dev server running?', true);
         }
+      }
+
+      function showSatInfo(data) {
+        document.getElementById('sat-info-name').textContent = data.OBJECT_NAME || '—';
+        document.getElementById('sat-info-norad').textContent = data.NORAD_CAT_ID || '—';
+        document.getElementById('sat-info-intl').textContent = data.OBJECT_ID || '—';
+        document.getElementById('sat-info-epoch').textContent = data.EPOCH ? new Date(data.EPOCH).toUTCString() : '—';
+        const mm = parseFloat(data.MEAN_MOTION);
+        document.getElementById('sat-info-period').textContent = mm ? (1440 / mm).toFixed(1) + ' min' : '—';
+        document.getElementById('sat-info-inc').textContent = data.INCLINATION != null ? parseFloat(data.INCLINATION).toFixed(4) + '°' : '—';
+        document.getElementById('sat-info-apo').textContent = data.APOAPSIS != null ? parseFloat(data.APOAPSIS).toFixed(1) + ' km' : '—';
+        document.getElementById('sat-info-per').textContent = data.PERIAPSIS != null ? parseFloat(data.PERIAPSIS).toFixed(1) + ' km' : '—';
+        document.getElementById('sat-info-ecc').textContent = data.ECCENTRICITY != null ? parseFloat(data.ECCENTRICITY).toFixed(7) : '—';
+        document.getElementById('sat-info-raan').textContent = data.RA_OF_ASC_NODE != null ? parseFloat(data.RA_OF_ASC_NODE).toFixed(4) + '°' : '—';
+        document.getElementById('sat-info-mm').textContent = mm ? mm.toFixed(8) + ' rev/day' : '—';
+        const card = document.getElementById('sat-info-card');
+        card.style.display = 'block';
+      }
+
+      function closeSatInfo() {
+        document.getElementById('sat-info-card').style.display = 'none';
       }
 
       function loadISS() {
