@@ -254,6 +254,64 @@ body {
   box-shadow: 0 0 5px rgba(102, 252, 241, 0.3) !important;
 }
 
+/* Simulation Clock Panel */
+.sim-clock-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 200px;
+  z-index: 10;
+  background: rgba(11, 12, 16, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(69, 162, 158, 0.3);
+  border-radius: 12px;
+  padding: 14px 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(102, 252, 241, 0.05);
+  text-align: center;
+  min-width: 200px;
+  pointer-events: none;
+}
+
+.sim-clock-time-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sim-clock-time {
+  font-size: 32px;
+  font-weight: 700;
+  font-family: 'Outfit', monospace;
+  color: #fff;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.sim-clock-tz {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sim-clock-date {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-light);
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
+.sim-clock-speed {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-top: 6px;
+  letter-spacing: 0.5px;
+}
+
 /* Live Tracker Panel */
 .live-tracker-panel {
   position: absolute;

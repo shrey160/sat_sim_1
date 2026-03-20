@@ -43,8 +43,32 @@ const params = {
   alongTrackAngle: 0, // Pitch (forward/backward) pointing offset (degrees)
   crossTrackAngle: 0, // Roll (sideways) pointing offset (degrees)
   rotationsToKeep: 1, // How many orbital overlaps the system retains footprint histories for
-  timeMultiplier: 60, // Speed multiplier accelerating physical simulation time
+  timeMultiplier: 60, // Speed multiplier accelerating physical simulation time (negative = reverse)
   clearHistory: () => clearSwathHistory() // Function bound to the GUI button
+};
+
+// Clock & timezone state
+const clockState = {
+  timezone: 'IST',
+  customOffsetHours: 5.5, // IST default
+  setDateTime: '',
+  applySetTime: function() {
+    if (clockState.setDateTime) {
+      const d = new Date(clockState.setDateTime);
+      if (!isNaN(d.getTime())) {
+        simTime = d.getTime();
+        lastScenePos = null;
+        clearSwathHistory();
+      }
+    }
+  }
+};
+
+const TZ_OFFSETS = {
+  'IST': 5.5,
+  'PST': -8,
+  'UTC': 0,
+  'Custom': null
 };
 
 let currentSatrec = satellite.twoline2satrec(params.tleLine1, params.tleLine2);
@@ -84,6 +108,42 @@ function updateSatrec() {
   }
 }
 
+
+// --- Clock Display ---
+function updateClockDisplay(simDate) {
+  const el = document.getElementById('sim-clock');
+  if (!el) return;
+  
+  // Convert UTC sim time to the selected timezone
+  const utcMs = simDate.getTime();
+  const offsetMs = clockState.customOffsetHours * 3600000;
+  const localDate = new Date(utcMs + offsetMs);
+  
+  const year = localDate.getUTCFullYear();
+  const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(localDate.getUTCDate()).padStart(2, '0');
+  const hours = String(localDate.getUTCHours()).padStart(2, '0');
+  const mins = String(localDate.getUTCMinutes()).padStart(2, '0');
+  const secs = String(localDate.getUTCSeconds()).padStart(2, '0');
+  
+  const tzLabel = clockState.timezone === 'Custom' 
+    ? `UTC${clockState.customOffsetHours >= 0 ? '+' : ''}${clockState.customOffsetHours}` 
+    : clockState.timezone;
+
+  const dateEl = document.getElementById('sim-clock-date');
+  const timeEl = document.getElementById('sim-clock-time');
+  const tzEl = document.getElementById('sim-clock-tz');
+  const speedEl = document.getElementById('sim-clock-speed');
+  
+  if (dateEl) dateEl.textContent = `${year}-${month}-${day}`;
+  if (timeEl) timeEl.textContent = `${hours}:${mins}:${secs}`;
+  if (tzEl) tzEl.textContent = tzLabel;
+  if (speedEl) {
+    const mult = params.timeMultiplier;
+    speedEl.textContent = mult >= 0 ? `${mult}×` : `${mult}× (REV)`;
+    speedEl.style.color = mult < 0 ? '#ff6b6b' : '#66fcf1';
+  }
+}
 
 // Arrays and timers for trailing footprint caching
 let swathHistory = [];
@@ -252,7 +312,19 @@ rsFolder.add(params, 'clearHistory').name('Clear Trail');
 
 const simFolder = gui.addFolder('Simulation Settings');
 simFolder.add(params, 'altitudeScale', 0.5, 3.0).name('Altitude Multiplier');
-simFolder.add(params, 'timeMultiplier', 1, 1000).name('Time Speed');
+simFolder.add(params, 'timeMultiplier', -1000, 1000).step(1).name('Time Speed');
+
+// --- Clock Panel ---
+const clockFolder = gui.addFolder('Simulation Clock');
+clockFolder.add(clockState, 'timezone', Object.keys(TZ_OFFSETS)).name('Timezone').onChange(v => {
+  if (TZ_OFFSETS[v] !== null) {
+    clockState.customOffsetHours = TZ_OFFSETS[v];
+    gui.controllersRecursive().forEach(c => c.updateDisplay());
+  }
+});
+clockFolder.add(clockState, 'customOffsetHours', -12, 14).step(0.5).name('UTC Offset (hrs)').listen();
+clockFolder.add(clockState, 'setDateTime').name('Set Time (ISO)');
+clockFolder.add(clockState, 'applySetTime').name('⏱ Jump to Time');
 
 // --- GeoJSON Borders ---
 params.showBorders = true;
@@ -354,9 +426,12 @@ function animate() {
   requestAnimationFrame(animate);
 
   const delta = clock.getDelta(); // Retrieve physical real-world elapsed time (usually 16ms)
-  const stepMs = delta * 1000 * params.timeMultiplier; // Apply fast forwarding logic
+  const stepMs = delta * 1000 * params.timeMultiplier; // Apply fast forwarding logic (negative = reverse)
   simTime += stepMs; // Accumulate native internal simulated timeframe 
   const t = new Date(simTime);
+
+  // Update the clock display
+  updateClockDisplay(t);
 
   // --- TLE Orbit Propagation ---
   const orbitalPeriodMs = (2 * Math.PI / (currentSatrec.no || 0.0698)) * 60000; // Formula deriving the full length of a unified orbital revolution natively
